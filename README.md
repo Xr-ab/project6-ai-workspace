@@ -5,15 +5,15 @@
 
 ## 能力清单
 
-| 能力 | 一句话 | 出处 |
-|---|---|---|
-| RAG 检索问答 | 向量 + 全文混合检索，RRF 融合，答案带引用来源 | `docs/02` §1.4、`docs/06` §2.3 |
-| Tool Calling | 工具进统一 registry，存在性/参数/权限三闸 + 全量计时落 `tool_calls` | `docs/04` §2、§6 |
-| Multi-Agent 与 Trace | Supervisor 动态调度，一次任务的调用树看得见谁调了模型 | `docs/03`、`docs/06` §4 |
-| Workflow 审批停等 | 图跑到审批节点真的停住等批准，状态字面量 `waiting_approval` | `docs/06` §2.6（错误码表在 `docs/06:345`） |
-| MCP 外部库存数据域 | 外部工具包成普通 `Tool` 进现有注册表，`tool_type="external"` | `docs/09` §13、`docs/04` §8 落地补记（`docs/04:142`） |
-| 记忆与评测、成本口径 | 终态快照注入 + 五类评测 + 单价表算 cost | `docs/11`、`docs/08`、`docs/02` §7 |
-| 队列 + 限流 + 审计 | 长任务 202 入 arq 队列，Redis 滑窗限流，写请求全量审计 | `docs/02` §2.1、`docs/06` §6.5、`docs/05` §2.1 |
+| 能力 | 一句话 |
+|---|---|
+| RAG 检索问答 | 向量 + 全文混合检索，RRF 融合，答案带引用来源 |
+| Tool Calling | 工具进统一 registry，存在性/参数/权限三闸 + 全量计时落 `tool_calls` |
+| Multi-Agent 与 Trace | Supervisor 动态调度，一次任务的调用树看得见谁调了模型 |
+| Workflow 审批停等 | 图跑到审批节点真的停住等批准，状态字面量 `waiting_approval` |
+| MCP 外部库存数据域 | 外部工具包成普通 `Tool` 进现有注册表，`tool_type="external"` |
+| 记忆与评测、成本口径 | 终态快照注入 + 五类评测 + 单价表算 cost |
+| 队列 + 限流 + 审计 | 长任务 202 入 arq 队列，Redis 滑窗限流，写请求全量审计 |
 
 ## 跑起来，两条路
 
