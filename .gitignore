@@ -1,0 +1,48 @@
+# ===== 环境与敏感信息 =====
+.env
+*.env
+!.env.example
+# 本地开发登录凭据（口令只在本机，不入库）
+账号密码.txt
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===== 前端 =====
+node_modules/
+dist/
+build/
+
+# ===== 日志 / 临时 =====
+*.log
+*.out
+*.out.txt
+.remember/
+
+# ===== 本地数据 =====
+# 上传的原始文档（含业务资料），只属于本地环境，不进版本库
+data/uploads/
+
+# ===== 参考仓库 =====
+# 仅作本地教材（Phase 4-6 概念参考），按项目约定不进主项目代码
+mulit agent-langgraph/
+
+# ===== 内部文档 / 实验区（本地保留，不入库） =====
+docs/
+DELIVERY.md
+archive/
+backend/scratch/
+项目架构交互地图.html
+
+# ===== IDE / 系统 =====
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

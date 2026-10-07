@@ -1,0 +1,317 @@
+# Phase 11a：一条命令拉起全栈。两套形态共用这一份文件，靠参数化区分（spec §6 R-A）。
+#
+#   本机开发形态（默认项目；卷/容器名/端口 = 历史现值，家里那几个月的数据在原地）
+#       docker compose up -d --build
+#   冷启动验收形态（独立项目、独立卷、错开宿主端口）
+#       docker compose --env-file docker/acceptance.env -p p6accept up -d --build
+#       docker compose --env-file docker/acceptance.env -p p6accept down -v
+#
+# ⚠️ 默认项目永远不要 `down -v`：p6_pgdata 里是 Phase 1–10 攒下的真实演示数据。
+# ⚠️ command 里给 shell 用的 `$` 一律写成 `$$`：插值发生在 compose 层，不在容器层。
+
+services:
+  postgres:
+    # pgvector 官方镜像：Phase 1 用不到向量，但首个迁移要 CREATE EXTENSION vector
+    image: pgvector/pgvector:pg16
+    container_name: ${P6_PG_CONTAINER:-p6-postgres}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app_dev_pwd
+      POSTGRES_DB: ai_workspace
+    ports:
+      # 宿主机端口参数化：本机形态沿用 5432（后端在 host 跑时用 localhost:5432），
+      # 验收形态换 5543，两套项目才能同时存在
+      - "${P6_PG_HOST_PORT:-5432}:5432"
+    volumes:
+      - p6_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # 断**返回值**，不只是「进程在」（§2.2 ⑩）：pg_isready 只答进程活着，
+      # 后面那条要真查出 1 才算这个库可用
+      test: ["CMD-SHELL", "pg_isready -q -U app -d ai_workspace && psql -U app -d ai_workspace -tAc 'SELECT 1' | grep -qx 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    # refresh 白名单 + arq broker（06 §1.4）。版本选 7：GETDEL 需要 ≥6.2
+    image: redis:7-alpine
+    container_name: ${P6_REDIS_CONTAINER:-p6-redis}
+    restart: unless-stopped
+    ports:
+      - "${P6_REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - p6_redisdata:/data
+    healthcheck:
+      # `$$` 不是笔误：compose 先把 $$ 变成 $，剩下的才交给容器里的 shell
+      test: ["CMD-SHELL", "test \"$$(redis-cli ping)\" = PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # one-shot 初始化：迁移 + 业务种子 + 企业库 + checkpoint 表（spec §3 的顺序图）。
+  # restart: "no" 是刻意的——one-shot 必须停在失败态，重启风暴会把一次性故障变成刷屏。
+  init-data:
+    image: p6-backend:dev
+    build: ./backend
+    container_name: ${P6_INIT_CONTAINER:-p6-init-data}
+    restart: "no"
+    # 不给 env_file（R-B/R-M）：它只需要 DATABASE_URL，口令面与两把密钥都不该进 one-shot，
+    # 顺带让 seed_dev_users.py 那道「两把 SEED_* 都在才跑」的门恒不满足。
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app_dev_pwd@postgres:5432/ai_workspace
+      APP_ENV: development
+      # 面⑦ 的注入器：`P6_ENTERPRISE_DB=Bad-Name!` 让第 3 步在 _assert_ident 上非 0 退出
+      ENTERPRISE_DB_NAME: ${P6_ENTERPRISE_DB:-enterprise_data}
+      # 宿主→容器的透传口：command 里的 `$${P6_FORCE_SEED:-}` 归容器 shell 读，compose 不替它插值，
+      # 没有这一行映射宿主上的 `P6_FORCE_SEED=1` 就进不了容器 ⇒ R-T2b 的逃生口与面⑦ 的注入器（已播种卷）都是死代码
+      P6_FORCE_SEED: ${P6_FORCE_SEED:-}
+      HF_ENDPOINT: https://hf-mirror.com
+      # XET 那条下载腿在镜像上是断的：CAS 服务器只认 huggingface.co 签的 token，
+      # 走 hf-mirror 会拿到 401（一手证据：backend/scratch/_p11c_t7_demo1_retry1/worker.log，
+      # 文档因此 status=failed）。关掉 XET 后走经典 /resolve/main/ 通道，镜像代理得了。
+      # 三个下模型的服务（init-data / app / worker）都要成对上，针在 tests/unit/test_demo_stack_guards.py。
+      HF_HUB_DISABLE_XET: "1"
+      FASTEMBED_CACHE_PATH: /app/data/model_cache
+    volumes:
+      - p6_modelcache:/app/data/model_cache
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        alembic upgrade head
+        # R-T2b：业务种子只在空库播；P6_FORCE_SEED 是逃生口（面⑦ 的注入要靠它把第 3 步放开）
+        if [ -n "$${P6_FORCE_SEED:-}" ] || python scripts/needs_business_seed.py; then
+          python scripts/seed_business_data.py
+          python scripts/create_enterprise_db.py
+        else
+          echo "init-data: products 已有行 ⇒ 跳过业务种子与企业库重建（重跑会轮转主键）"
+        fi
+        python scripts/init_checkpoint_tables.py
+        python scripts/warm_embedding.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # API（uvicorn）。不发布宿主端口：本机形态走 run_dev.py 的 :8002，容器形态只经 nginx。
+  app:
+    image: p6-backend:dev
+    build: ./backend
+    container_name: ${P6_APP_CONTAINER:-p6-app}
+    restart: unless-stopped
+    # R-M：两把密钥（JWT_SECRET / LLM_API_KEY）**只**从这份 git-ignored 文件来。
+    # 下面 environment: 里绝不列它们——environment 优先级高于 env_file，
+    # 列一个空值就等于把真值顶成空（面② 第三枚针证的正是这条优先级，反过来用就是自伤）。
+    # 短语法（不给 required: false）是故意的：文件没了要在 `compose config` 上大声红。
+    env_file: ./backend/.env
+    environment:
+      # 容器形状（compose 服务名，不是 localhost：容器里的 localhost 指向容器自己）
+      DATABASE_URL: postgresql+asyncpg://app:app_dev_pwd@postgres:5432/ai_workspace
+      REDIS_URL: redis://redis:6379/0
+      MCP_ENTERPRISE_URL: http://mcp-server:8100/mcp
+      UPLOAD_DIR: /app/data/uploads
+      APP_ENV: development
+      HF_ENDPOINT: https://hf-mirror.com
+      HF_HUB_DISABLE_XET: "1"   # 与 init-data 处同因，注释在那边
+      FASTEMBED_CACHE_PATH: /app/data/model_cache
+      # 11c 压测的边界档旋钮：限流值是进程启动时快照（app/core/config.py:105 的 settings 是模块级实例，
+      # import 那一刻定档；默认值 20 的真身在 app/core/config.py:84），同一容器改不出两档 ⇒ 换档 = 重新 up 一个生命周期（docs/12 记档位）。
+      # 默认 20 = 现值，不带 env 时行为与 11b 逐字节相同。
+      RATE_LIMIT_TASK_PER_MIN: ${P6_RL_TASK_PER_MIN:-20}
+    command:
+      # R-E：容器里不能进 run_dev.py（它绑 127.0.0.1 + win32 loop 工厂）。
+      # R-K：--proxy-headers 让 uvicorn 采信 XFF。**采信到的不是「真实客户端」**：uvicorn 的
+      # 算法是「从右往左扫，取第一个不在 --forwarded-allow-ips 里的地址」，而 nginx 用
+      # $proxy_add_x_forwarded_for 是**追加**——客户端自带的伪造 XFF 就坐在真值左边，于是它
+      # 成了 request.client.host（T4 面⑧ 实测：203.0.113.7/.8 两枚伪造头各进各的限流桶，
+      # 第 11 次才 429）。⇒ 信任边界是「同网络内的调用方可伪造 XFF 绕开 ip 腿限流」，ip 腿只作
+      # 粗粒度兜底，真隔离靠鉴权身份；口径成文在 docs/02 §10。
+      # ::1 不是凑数——宿主浏览器/curl 走 IPv6 回环进 nginx 时 $remote_addr 就是 ::1，
+      # 它不在信任表里的话「反向找第一个不可信地址」会停在 ::1，全站塌进同一个桶（面⑧ 两半同红）。
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1,::1
+    volumes:
+      - p6_uploads:/app/data/uploads
+      - p6_modelcache:/app/data/model_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      init-data:
+        condition: service_completed_successfully
+    healthcheck:
+      # /healthz 恒 200（app/main.py:99-120）⇒ 状态码探针 = 永久假绿，必须解析 body（面①）。
+      # print 不是废话：docker inspect 会把探针的 Output 记进 History，那就是取证原文。
+      test:
+        - CMD
+        - python
+        - "-c"
+        - |
+          import json, sys, urllib.request
+          d = json.load(urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=3))
+          print(d)
+          sys.exit(0 if d.get("status") == "ok" else 1)
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  worker:
+    # Phase 8b（spec §3.1）：arq worker 进程。R-F 之后默认 up 就带它（本批出口 = 一条命令全栈）。
+    # ⚠️ 双形态互斥纪律（docs/02 §10 成文）：容器 worker 起来时不要再在本机 `python -m app.workers`——
+    #    两个进程连同一个 Redis 队列会抢消费，任务归因就说不清了（spec §4 双形态那条）。
+    image: p6-backend:dev
+    build: ./backend
+    container_name: ${P6_WORKER_CONTAINER:-p6-worker}
+    restart: unless-stopped
+    command: python -m app.workers
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app_dev_pwd@postgres:5432/ai_workspace
+      REDIS_URL: redis://redis:6379/0
+      MCP_ENTERPRISE_URL: http://mcp-server:8100/mcp
+      UPLOAD_DIR: /app/data/uploads
+      APP_ENV: development
+      HF_ENDPOINT: https://hf-mirror.com
+      HF_HUB_DISABLE_XET: "1"   # 与 init-data 处同因，注释在那边
+      FASTEMBED_CACHE_PATH: /app/data/model_cache
+      # #23 中毒环（Phase 11b T4，spec §8 修法 2）：容器形态崩了就退出，复活交给
+      # restart: unless-stopped（:164）—— 全新进程 = 全新 checkpointer 单例。
+      # 默认 1 是因为本服务只在容器里存在；本机 dev 用 `python -m app.workers` 直跑，
+      # 读的是 backend/.env 里没有这个键 ⇒ 默认 False ⇒ 保持进程内退避重启（双形态并存）。
+      # P6_WORKER_EXIT_ON_FATAL=0 可以退回旧行为排障（那时会复现 #23，慎切）。
+      WORKER_EXIT_ON_FATAL: ${P6_WORKER_EXIT_ON_FATAL:-1}
+    # R-D：写侧在 app（请求内落盘）、读侧在这里（第 5 个 arq job 解析文件）。
+    # 只挂 app 的话：上传返回 200、索引永远读不到盘、文档恒 failed（面⑥ 的形状）。
+    # WORKDIR 两边同为 /app，UPLOAD_DIR 同为绝对路径 ⇒ 跨容器一致性有两条腿。
+    volumes:
+      - p6_uploads:/app/data/uploads
+      - p6_modelcache:/app/data/model_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      init-data:
+        condition: service_completed_successfully
+    healthcheck:
+      # R-N：arq 进程不开任何 HTTP 端口、也不往 Redis 写心跳键（实测 arq:* 零键）
+      # ⇒ 这里没有「解析 body」可做，探针只能是**连接型**：证的是这一容器的 Redis 接线对
+      # （REDIS_URL 写错、服务名写错都在这里红），不证消费循环。
+      # 「消费活着」由判据④ 的 `logs worker | grep <task_id>` 承——两条各证各的，不互相冒充。
+      # T3 实测（本探针第一次真在容器里跑）：`create_pool(settings.redis_url)` 传的是 str，
+      # arq 内部读 `.host` ⇒ AttributeError，容器恒 unhealthy。已改成与 app/workers/__main__.py:83
+      # 同一装配（RedisSettings.from_dsn）；反向对照见 scratch/_p11a_t3/worker-probe-negative-control.txt。
+      test:
+        - CMD
+        - python
+        - "-c"
+        - |
+          import asyncio, sys
+          from arq import create_pool
+          from arq.connections import RedisSettings
+          from app.core.config import settings
+          async def main():
+              try:
+                  pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+                  await pool.ping()
+                  await pool.close()
+              except Exception as exc:
+                  print(exc)
+                  sys.exit(1)
+          asyncio.run(main())
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # Enterprise Data MCP Server（Phase 10）：独立进程，只读 enterprise_data 库。
+  # R-F 之后默认 up 就带它；本批之前它从未真容器起过（docs/09 §11 行 209 那笔欠账）。
+  mcp-server:
+    image: p6-backend:dev
+    build: ./backend
+    container_name: ${P6_MCP_CONTAINER:-p6-mcp-server}
+    restart: unless-stopped
+    command: python -m app.mcp.server
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app_dev_pwd@postgres:5432/ai_workspace
+      APP_ENV: development
+      # 只读池 + 按 org 过滤在 app/mcp/inventory_data.py；这里不设 env_file（无密钥需求）
+      ENTERPRISE_DB_NAME: ${P6_ENTERPRISE_DB:-enterprise_data}
+      # ⚠️ 同名键在两处是两种语义：app/worker 用它当**客户端地址**（http://mcp-server:8100/mcp），
+      # 这里用它当**绑定地址**——FastMCP 从 urlparse(url).hostname 取要绑的口子（server.py 实读），
+      # 所以本服务必须写 0.0.0.0，否则绑到 127.0.0.1 就跨不出容器。
+      MCP_ENTERPRISE_URL: http://0.0.0.0:8100/mcp
+    ports:
+      # **绑 127.0.0.1** 而不是裸 `${P6_MCP_HOST_PORT:-8100}:8100`（Phase 10 终评 I-1）：
+      # 这把口下 `/mcp` 无鉴权、organization_id 由调用方给（实测 server.py:59-78），
+      # 而本批要让六常驻默认自启（R-F）⇒ 裸发布等于把跨组织库存读口对局域网打开。
+      # 容器内的 app/worker 走服务名直连，不经宿主端口；宿主侧手工排障仍能用 127.0.0.1。
+      - "127.0.0.1:${P6_MCP_HOST_PORT:-8100}:8100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init-data:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - "-c"
+        - |
+          import json, sys, urllib.request
+          d = json.load(urllib.request.urlopen("http://127.0.0.1:8100/healthz", timeout=3))
+          print(d)
+          sys.exit(0 if d.get("status") == "ok" else 1)
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # 前端：静态 + 同源反代。浏览器只碰这一个口（:8080 / 验收 :8081），后端不发布宿主端口。
+  frontend:
+    image: p6-frontend:dev
+    build:
+      context: ./frontend
+      args:
+        # R-I：基址在构建期烘焙进 bundle；同源 ⇒ 容器形态不吃 CORS
+        VITE_API_BASE: /api/v1
+    container_name: ${P6_WEB_CONTAINER:-p6-web}
+    restart: unless-stopped
+    ports:
+      # 8080 与项目 5 的 langfuse 同值（spec §7 行 3，现 Exited）。真撞了就改 acceptance.env
+      # 或临时停另一套——参数化的意义就在这里。
+      - "${P6_WEB_HOST_PORT:-8080}:80"
+    depends_on:
+      init-data:
+        condition: service_completed_successfully
+      app:
+        condition: service_started
+    healthcheck:
+      # busybox wget（nginx:alpine 里有，curl 没有）。同样是解析 body 口径。
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz | grep -q '\"status\":\"ok\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+volumes:
+  # 卷的**键**必须是字面量（服务里引用它），名字才参数化。
+  # 默认值 = 现值（`docker volume ls` 实测就叫 project6-ai-workspace_p6_*）
+  # ⇒ 不加 --env-file 时，本机形态起来看到的是同一批数据。
+  p6_pgdata:
+    name: ${P6_PGDATA:-project6-ai-workspace_p6_pgdata}
+  p6_redisdata:
+    name: ${P6_REDISDATA:-project6-ai-workspace_p6_redisdata}
+  p6_uploads:
+    name: ${P6_UPLOADS:-project6-ai-workspace_p6_uploads}
+  p6_modelcache:
+    name: ${P6_MODELCACHE:-project6-ai-workspace_p6_modelcache}

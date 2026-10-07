@@ -1,0 +1,139 @@
+# Phase 11b T6（spec §7）。远端仓库根的 .github/workflows/ci.yml —— 本地它在
+# project6-ai-workspace/.github/ 下，git subtree split 之后正好落在远端根。
+#
+# 三样东西**绝不许出现在这个文件里**（spec §7 末段，Step 6 有机器针在守）：
+#   GitHub 的密钥注入语法  —— CI 不需要任何真密钥
+#   compose 渲染结果重定向  —— 渲染输出落盘就是 11a 的那次事故
+#   真 LLM 调用            —— 11b 全程零钱，embedding 也不进 CI
+#
+# 这三行**故意不写被禁的字面量**：守它的针按子串匹配整份文件（见 Step 6 的
+# test_workflow_face_forbids_secrets_injection_and_render_redirect），
+# 注释里复述一遍就等于把这三种形状请回了射程，门禁会判红自己的文件。
+# 想改这段注释的人：保持"描述而不拼写"。
+#
+# JWT_SECRET 用 test-only 字面值：Task 3 的 make_identity 要 settings.jwt_secret 非空
+# 才能铸 token（plan:1435），而它显然不是真值，所以它也过得了 Step 1 的门禁。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app_dev_pwd
+          POSTGRES_DB: ai_workspace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      JWT_SECRET: test-only-not-a-real-secret
+      DATABASE_URL: postgresql+asyncpg://app:app_dev_pwd@localhost:5432/ai_workspace
+      REDIS_URL: redis://localhost:6379/0
+      APP_ENV: development
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Migrate (RK1 —— 十个迁移在全新空库上跑穿)
+        run: python -m alembic upgrade head
+
+      - name: Seed business data (CI 空库，主键轮转风险不存在)
+        run: python scripts/seed_business_data.py
+
+      - name: Unit layer (offline, spec §11 判据 1)
+        run: python -m pytest -m "not db and not redis" -q
+
+      - name: Full layer incl. integration (spec §11 判据 2)
+        run: python -m pytest -m "not slow" -q
+
+      - name: Secret scan (spec §10 / §11 判据 5)
+        run: python scripts/secret_scan.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Record node version (RK5 —— vite 7 engines 下限 22.12 要在日志里可见)
+        run: node -v
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests (lib/ 纯函数，spec §5.2 边界)
+        run: npx vitest run
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit（全量审计，不省略 dev 依赖 —— 判据 4；字面量原因见文件头注释）
+        run: npm audit
+
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compose config 校验（-q 只校验语法、**不渲染输出** ⇒ 结构上不可能泄口令）
+        run: docker compose --env-file docker/acceptance.env config -q
+
+      - name: 渲染产物不得在跟踪列表里（spec §10 约束 3）
+        # python3 而非裸 python：这个 job 没有 setup-python，runner 镜像不保证有 `python`
+        # （修复轮 1 Minor；backend job 有 setup-python，那侧的裸 python 不动）。
+        run: python3 backend/scripts/secret_scan.py --artifacts-only

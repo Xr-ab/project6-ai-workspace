@@ -1,0 +1,70 @@
+/* PromoteToDataset（D9）：按钮 → 内联面板两态，不弹窗。配色沿用 TaskStatusBadge 的
+   浅底深字一套（.confirm 蓝 = 主操作，.done 绿 = 成功提示）。 */
+.trigger {
+  padding: 4px 10px;
+  border: 1px solid #c9ced8;
+  border-radius: 6px;
+  background: #fff;
+  color: #2a2f3a;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.trigger:hover {
+  border-color: #1a56b0;
+  color: #1a56b0;
+}
+
+.panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.select {
+  padding: 4px 6px;
+  border: 1px solid #c9ced8;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.confirm {
+  padding: 4px 10px;
+  border: 1px solid #1a56b0;
+  border-radius: 6px;
+  background: #e8f1ff;
+  color: #1a56b0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.confirm:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cancel {
+  border: none;
+  background: none;
+  color: #5a5f6b;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.error {
+  color: #a52323;
+  font-size: 13px;
+}
+
+.hint {
+  color: #5a5f6b;
+  font-size: 13px;
+}
+
+.done {
+  margin: 0;
+  color: #1c6b3a;
+  font-size: 13px;
+}

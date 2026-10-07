@@ -1,0 +1,73 @@
+# FastAPI 基础依赖（Phase 1：AI Chat MVP）
+# 下限 0.118 不是随手写的：0.118 起依赖(yield)的清理在**响应流推完之后**才执行，
+# chat 推流期间才能继续用 session（见 app/api/chat.py 里的注释）。
+# 装上 0.115 时代码照跑、流式请求却在会话关闭后炸——错误还离根因很远。
+fastapi>=0.118
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3
+python-dotenv>=1.0
+# multipart 表单解析（Phase 2 文件上传）。FastAPI 的 UploadFile 依赖它，
+# 缺了会在**启动时**直接报 RuntimeError（不是等到请求进来才报）
+python-multipart>=0.0.9
+
+# LLM 接入：LangChain 官方 OpenAI 兼容集成
+# 为什么不用原生 openai SDK：Phase 3 工具调用（bind_tools）、Phase 4 LangGraph
+# 的 State 都建立在 LangChain 消息类型上，早对齐避免中途返工
+langchain-openai>=0.3
+
+# LangGraph（Phase 4）：有状态图编排（State / Node / Edge / 条件边 / Checkpointer）
+# 为什么不用手写循环：Phase 3 的 tool loop 是"一次问到底"；Phase 4 要"中断可恢复"，
+# 靠 Checkpointer 把状态持久化下来，手写循环给不了这个语义
+langgraph>=1.2
+
+# Embedding（Phase 2）：本地 ONNX 推理，免费、无 key
+# 为什么不用 sentence-transformers：会连带 torch（约 2.5GB），本地推理只需要 onnxruntime
+# 为什么不用远程 embedding API：要额外 key 且按量计费，bge-small-zh-v1.5 中文效果已够用
+fastembed>=0.4
+
+# 数据库：SQLAlchemy 2.x 异步 + asyncpg 驱动 + Alembic 迁移
+# 为什么用 asyncpg 而不是 psycopg2：FastAPI 全链路 async，同步驱动会阻塞事件循环
+sqlalchemy[asyncio]>=2.0
+asyncpg>=0.29
+alembic>=1.13
+
+# Checkpointer 跨进程续跑（Phase 7，docs/11 §3）：LangGraph 官方 Postgres saver 走 psycopg 3
+# 双驱动（主链路 asyncpg / saver psycopg）是审批语义的买价，docs/11 §3：
+# interrupt/resume 的 checkpoint 读写绑 psycopg 连接池，应用读写仍走 asyncpg，各干各的
+langgraph-checkpoint-postgres>=2.0
+psycopg[binary]>=3.1
+
+# pgvector（Phase 2）：给 SQLAlchemy 提供 VECTOR 列类型，模型 / 迁移里才能写 Vector(512)
+# 只装 Python 侧类型映射，数据库侧的扩展由迁移里的 CREATE EXTENSION 负责
+pgvector>=0.3
+
+# 文档解析（Phase 2）：PDF / DOCX / XLSX 各一个库，TXT / MD / CSV 用标准库
+# 为什么 PDF 用 pypdf 不用 pdfplumber：pypdf 纯 Python、无额外系统依赖，
+# 文本型 PDF 提取够用；将来要处理复杂排版或扫描件 OCR 再换
+pypdf>=5.0
+python-docx>=1.1
+openpyxl>=3.1
+
+# ---- Phase 8a：身份与访问 ----
+# JWT：用 PyJWT 而不是 python-jose（后者维护面小、历史 CVE 多；本项目只用 HS256 签/验）
+PyJWT>=2.9
+# 口令哈希：直用 bcrypt，不走 passlib——passlib 1.7.4 读 bcrypt>=4.1 的 __about__ 已炸是已知坑
+bcrypt>=4.1
+# 校验 EmailStr 需要 email-validator（register/login 的 schema 用）
+email-validator>=2.0
+# refresh 白名单存储（docs/06 §1.4「Redis 白名单可吊销」的字面兑现）；用 redis.asyncio 面
+redis>=5.0
+# 仅测试用：refresh 轮转/吊销的纯函数套件不碰真容器（生产代码零依赖 fakeredis）
+fakeredis>=2.23
+
+# ---- Phase 8b：异步底座 ----
+# arq 而非 Celery（spec §2 两条硬理由：全 async 执行面不吃同步 worker 模型；
+# Celery 默认 prefork 池在 win32 开发机不可用）。broker 复用 p6-redis，键前缀 arq: 不与白名单撞。
+# 注意：arq 0.28 会把 redis-py 从 8.x 降到 5.3.x（它只兼容 5.x 线）——日后单独 `pip install -U redis` 会悄悄 break worker。
+arq>=0.26
+
+# ---- Phase 10：MCP 外部数据域 ----
+# MCP（Phase 10）：server 侧 FastMCP + client 侧 streamable_http 同一份 SDK。
+# 上界钉 <2：协议 SDK 的大版本会动 CallToolResult / inputSchema 形状，本批的对账针按 1.30.0 实测写。
+mcp>=1.29,<2

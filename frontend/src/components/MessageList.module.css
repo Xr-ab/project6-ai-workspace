@@ -1,0 +1,424 @@
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-3);
+  /* 消息最大宽度：太宽的行读起来费劲，也容易看不清是谁说的 */
+  max-width: 860px;
+}
+
+.rowUser {
+  flex-direction: row-reverse;
+  /* 用户消息靠右 */
+  margin-left: auto;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.rowUser .avatar {
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rowUser .body {
+  align-items: flex-end;
+}
+
+.bubble {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.bubbleAssistant {
+  /* 助手气泡左上方切一个角，视觉上和头像对齐 */
+  border-top-left-radius: var(--radius-sm);
+}
+
+.bubbleUser {
+  border-top-right-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  border-color: #c9d8ff;
+}
+
+.bubbleError {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-soft);
+}
+
+.userText {
+  /* 保留用户输入里的换行和连续空格 */
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
+}
+
+.placeholder {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.cursor {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--color-primary);
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.meta {
+  min-height: 16px;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-xs);
+}
+
+.metaSending {
+  color: var(--color-text-muted);
+}
+
+.metaMuted {
+  color: var(--color-text-muted);
+}
+
+.metaError {
+  color: var(--color-danger);
+  /* 后端返回的错误信息可能很长，允许换行 */
+  word-break: break-word;
+}
+
+/* ---- 消息动作条（复制 / 重试），只挂在终态消息上 ---- */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+}
+
+.actionBtn {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.actionBtn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* :disabled 显式写而不是靠浏览器默认（全仓惯例）：置灰态要看得出置灰 */
+.actionBtn:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.copiedTip {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* 只覆盖颜色，布局沿用 .copiedTip —— 失败红不该另起一套排版 */
+.copiedTipError {
+  color: var(--color-danger);
+}
+
+/* ---- 工具调用过程块（Phase 3 Tool Calling）---- */
+
+.tools {
+  margin: 0 var(--space-1) var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.toolsLabel {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+.toolList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  /* 每行自带状态标签，去掉 ol 默认的 1. 2. 3. */
+  list-style: none;
+}
+
+.toolSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* 隐藏浏览器默认的三角标记，用 .toolChevron 自己画一个（能跟随展开旋转） */
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+/* Chrome/Safari 用的是伪元素而不是 list-style，得单独去一次 */
+.toolSummary::-webkit-details-marker {
+  display: none;
+}
+
+.toolChevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform 0.15s;
+}
+
+.tool[open] .toolChevron {
+  transform: rotate(90deg);
+}
+
+.toolStatus {
+  flex-shrink: 0;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+/* 失败用红色 + 文案"失败"双重表达，不只靠颜色 */
+.toolStatusError {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.toolName {
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+
+.toolMeta {
+  color: var(--color-text-muted);
+}
+
+.toolDuration {
+  /* 推到行尾：耗时是次要信息，不该把工具名和结果数挤散 */
+  margin-left: auto;
+  padding-left: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.toolArgs {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  /* SQL 一行可能很长：横向滚动，不撑破气泡宽度 */
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.toolError {
+  margin: var(--space-1) 0 0 var(--space-4);
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+  word-break: break-word;
+}
+
+/* ---- 引用来源块（Phase 2 RAG）---- */
+
+.citations {
+  margin: var(--space-2) var(--space-1) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+}
+
+.citationsLabel {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+.citationList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  /* 编号由 .citationIndex 自己渲染，去掉 ol 默认的 1. 2. 3. */
+  list-style: none;
+}
+
+.citation {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.citationIndex {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.citationName {
+  overflow: hidden;
+  /* 文件名可能很长，省略而不是撑破容器 */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.citationPage {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.citationScore {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.center {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  overflow-y: auto;
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.errorCard {
+  max-width: 460px;
+  padding: var(--space-5);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-danger-soft);
+  text-align: center;
+}
+
+.errorText {
+  margin: 0 0 var(--space-2);
+  color: var(--color-danger);
+  font-size: var(--font-size-md);
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.errorHint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.welcome {
+  max-width: 560px;
+  text-align: center;
+}
+
+.welcomeTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+}
+
+.welcomeText {
+  margin: 0 0 var(--space-5);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.suggestion {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.suggestion:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}

@@ -1,0 +1,13 @@
+# 构建上下文里不要本机形态的东西：spec §2.1。
+# .env 这一条是「镜像层零密钥」的机械保证（R-M）——compose 的 env_file 是运行时注入，
+# 但一旦 .env 被烤进上下文，它就永久躺在镜像层里了。
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+scratch/
+data/
+tests/
+.env
+.env.*
+*.log

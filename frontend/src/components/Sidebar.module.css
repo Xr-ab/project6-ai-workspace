@@ -1,0 +1,102 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--nav-width);
+  background: var(--color-nav-bg);
+  color: var(--color-nav-text);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--topbar-height);
+  padding: 0 var(--space-4);
+  flex-shrink: 0;
+}
+
+.brandMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.brandText {
+  color: var(--color-nav-text-active);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-nav-text);
+  font-size: var(--font-size-sm);
+  /* 图标是内联 SVG，用 currentColor 跟随文字颜色 */
+  transition: background 0.15s, color 0.15s;
+}
+
+.item:hover {
+  background: var(--color-nav-item-hover);
+  color: var(--color-nav-text-active);
+}
+
+.itemActive,
+.itemActive:hover {
+  background: var(--color-nav-item-active);
+  color: var(--color-nav-text-active);
+  font-weight: 600;
+}
+
+.itemDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.itemDisabled:hover {
+  background: transparent;
+  color: var(--color-nav-text);
+}
+
+.label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.footer {
+  margin-top: auto;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}

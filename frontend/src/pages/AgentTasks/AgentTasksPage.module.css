@@ -1,0 +1,20 @@
+.page { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.header { display: flex; flex-direction: column; gap: 4px; }
+.title { font-size: 20px; font-weight: 600; }
+.subtitle { font-size: 13px; color: #6b7280; }
+.compose { border: 1px solid #e3e5ea; border-radius: 10px; padding: 12px; background: #fff; }
+.textarea { width: 100%; border: 1px solid #d8dbe2; border-radius: 8px; padding: 10px; font: inherit; resize: vertical; }
+.composeBar { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.submitError { color: #a52323; font-size: 13px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab { border: 1px solid #d8dbe2; background: #fff; border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.tabOn { border-color: #1a56b0; background: #e8f1ff; color: #1a56b0; }
+.table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; }
+.table th, .table td { border-bottom: 1px solid #edeff3; padding: 10px 8px; text-align: left; vertical-align: top; }
+.questionCell { max-width: 420px; }
+.hint { color: #6b7280; font-size: 13px; }
+.errorCard { border: 1px solid #f3c9c9; background: #fdf2f2; border-radius: 10px; padding: 12px; }
+.errorText { color: #a52323; font-size: 13px; }
+.primaryButton { border: none; background: #1a56b0; color: #fff; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+.linkButton { border: 1px solid #d8dbe2; background: #fff; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.link { color: #1a56b0; }

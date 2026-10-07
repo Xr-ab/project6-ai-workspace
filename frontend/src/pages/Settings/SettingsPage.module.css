@@ -1,0 +1,32 @@
+/* Settings 页样式：沿用 AgentTasks / Task 详情 / Dashboard 同一套灰阶、圆角与字号。
+   类名与 SettingsPage.tsx 的 styles.* 一一对应（20 条），删任何一条都会静默无样式。
+   `.table` 的 colSpan 空态行不加类名，天然继承表格单元格样式。 */
+.page { padding: 24px; display: flex; flex-direction: column; gap: 16px; max-width: 920px; }
+.header { display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid #edeff3; padding-bottom: 12px; }
+.title { font-size: 20px; font-weight: 600; margin: 0; }
+.section { display: flex; flex-direction: column; gap: 10px; border: 1px solid #e3e5ea; border-radius: 10px; background: #fff; padding: 14px; }
+.sectionTitle { font-size: 15px; font-weight: 600; margin: 0; }
+.field { display: flex; flex-direction: column; gap: 4px; max-width: 360px; }
+.label { font-size: 12px; color: #6b7280; }
+.input { border: 1px solid #d8dbe2; border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; }
+.input:focus { border-color: #1a56b0; outline: none; }
+.row { display: flex; align-items: center; gap: 12px; }
+.primaryButton { border: none; background: #1a56b0; color: #fff; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
+.primaryButton:disabled { opacity: 0.55; cursor: not-allowed; }
+/* 保存反馈：R126（终评 F5①）后成功/失败已分成两个 state——.notice 只装中性成功文案，
+   失败走 .errorText（与口令段同形状）。注释原文「一个 state 同时装两种所以取中性色」已作废。 */
+.notice { margin: 0; font-size: 13px; color: #374151; }
+.errorText { margin: 0; font-size: 13px; color: #a52323; }
+.hint { margin: 0; font-size: 12px; color: #6b7280; }
+/* 只读清单：与详情页同款 dt/dd 两列栅格 */
+.readonlyList { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 13px; }
+.readonlyList dt { color: #6b7280; }
+.readonlyList dd { margin: 0; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th, .table td { border-bottom: 1px solid #edeff3; padding: 8px; text-align: left; vertical-align: top; }
+.table th { color: #6b7280; font-weight: 500; }
+.totalRow td { font-weight: 600; border-bottom: none; }
+.switchBar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.chip { border: 1px solid #d8dbe2; background: #fff; border-radius: 999px; padding: 4px 12px; font-size: 13px; color: #374151; cursor: pointer; }
+.chipActive { border-color: #1a56b0; background: #e8f1ff; color: #1a56b0; }
+.divider { width: 1px; align-self: stretch; background: #e3e5ea; margin: 0 4px; }

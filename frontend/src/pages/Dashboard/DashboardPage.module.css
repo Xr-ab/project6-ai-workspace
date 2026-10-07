@@ -1,0 +1,27 @@
+.page { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+.header { display: flex; flex-direction: column; gap: 4px; }
+.title { font-size: 20px; margin: 0; }
+.subTitle { margin: 0; color: #6b7280; font-size: 13px; }
+.hint { color: #6b7280; font-size: 13px; margin: 0; }
+.errorCard { padding: 24px; }
+.errorText { color: #a52323; font-size: 13px; margin: 0; }
+.retry { margin-top: 8px; padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; cursor: pointer; }
+.rangeBar { display: flex; gap: 8px; }
+.rangeBtn { padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 999px; background: #fff; font-size: 13px; cursor: pointer; color: #374151; }
+.rangeBtnActive { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.card { display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; text-decoration: none; color: inherit; }
+.cardLabel { font-size: 12px; color: #6b7280; }
+.cardValue { font-size: 22px; font-weight: 600; }
+.cardHint { font-size: 11px; color: #9ca3af; }
+.section { display: flex; flex-direction: column; gap: 10px; }
+.sectionTitle { font-size: 15px; margin: 0; display: flex; align-items: baseline; gap: 12px; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
+.table th { text-align: left; color: #6b7280; font-weight: 500; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
+.table td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+.link { color: #1d4ed8; font-size: 12px; text-decoration: none; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.listItem { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 8px 10px; border: 1px solid #f3f4f6; border-radius: 8px; background: #fff; }
+.muted { color: #9ca3af; font-size: 12px; }
+.quickLinks { display: flex; gap: 10px; }
+.quickLink { padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; font-size: 13px; text-decoration: none; color: #1f2937; }

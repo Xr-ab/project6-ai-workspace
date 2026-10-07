@@ -1,0 +1,21 @@
+/* ReportView（R56 收口件）：与 TaskDetailPage.module.css 同风格（同一套灰阶 / 圆角 / 字号）。
+   析出独立文件而不是复用页面样式：本组件被 Agent 任务详情与 Workflow 执行详情两处共用，
+   挂到任一页面的 CSS Module 上，另一页的类名就会解析成 undefined（静默无样式）。 */
+.report { display: flex; flex-direction: column; gap: 12px; }
+.reportTitle { font-size: 14px; font-weight: 600; }
+.summary { border-left: 3px solid #1a56b0; padding-left: 10px; }
+.section { display: flex; flex-direction: column; gap: 4px; }
+.sectionLabel { font-size: 13px; font-weight: 600; color: #4b5563; }
+/* 复核警告：与 Workflow 页「存疑（复核超限）」徽标同一族琥珀色，语义都是"报告带着已知毛病" */
+.warning { border: 1px solid #ffe6bf; background: #fffaf0; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.warningLabel { font-size: 12px; font-weight: 600; color: #8a5a00; }
+.warningList { margin: 0; padding-left: 18px; font-size: 13px; color: #8a5a00; display: flex; flex-direction: column; gap: 2px; }
+.rawDetails { border-top: 1px solid #edeff3; padding-top: 8px; }
+.rawSummary { font-size: 12px; color: #6b7280; cursor: pointer; }
+.rawPre { margin: 8px 0 0; padding: 10px; background: #f7f8fa; border-radius: 8px; font-size: 12px; line-height: 1.5; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+/* 引用来源折叠区：排在正文之后、原文 JSON 之前。
+   与 .rawDetails 同一族（都是"点开才看的附属信息"），但保留一点正文的字色与字号 ——
+   来源是报告的凭证，不是排障噪声，展开后要能照着读。 */
+.sources { border-top: 1px solid #edeff3; padding-top: 8px; }
+.sourcesSummary { font-size: 13px; color: #4b5563; cursor: pointer; }
+.sourcesBody { margin-top: 6px; padding-left: 2px; }

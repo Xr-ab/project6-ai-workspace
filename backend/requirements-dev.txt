@@ -1,0 +1,10 @@
+# Phase 11b 测试依赖（docs/superpowers/specs/2026-10-01-phase11b-tests-and-ci-design.md §5.1）。
+# **不进生产镜像**：backend/Dockerfile 只 pip install -r requirements.txt，
+# 所以这三个包装不进容器 —— 容器里跑的是应用，不是 pytest。
+# 上限刻意不钉：pytest 8→9 之前没有本项目依赖的行为面，钉住只会让 CI 与本机分叉。
+pytest>=8.0
+# asyncio_mode = auto（见 pytest.ini）：集成层的 async 用例不必逐个加装饰器
+pytest-asyncio>=0.24
+# pytest.ini 的 timeout = 120 由它兑现；一条卡死的用例不该把整个 job 拖到分钟级
+pytest-timeout>=2.3
+httpx>=0.28          # 11b 测试客户端已在用；11c 的 loadtest/demo 脚本直接依赖它，故显式声明

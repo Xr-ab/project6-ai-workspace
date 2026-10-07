@@ -1,0 +1,171 @@
+.wrapper {
+  flex-shrink: 0;
+  padding: var(--space-4) var(--space-6) var(--space-5);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+.box {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* 聚焦时高亮整个输入框，而不是只给 textarea 描边 —— 
+   边框画在外层 .box 上，视觉上才是一个整体 */
+.box:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(47, 107, 255, 0.12);
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  padding: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--color-text);
+  line-height: 1.6;
+  overflow-y: auto;
+}
+
+.textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+/* 原生 file input 只用来取 File，外观交给 .attachButton */
+.fileInput {
+  display: none;
+}
+
+/* 附件按钮：和 .toggle 同一排、同一尺寸量，但它是一次性动作不是状态开关 */
+.attachButton {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.attachButton:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* :disabled 显式写而不是靠浏览器默认（全仓惯例） */
+.attachButton:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* 模式开关（知识库 / 工具）。做成胶囊而不是 checkbox：开关状态要一眼可见 */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.toggle:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* 开启态同时改底色、边框、字重和圆点 —— 不只靠颜色区分，色觉障碍下也能分辨 */
+.toggleOn {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.toggleDot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+}
+
+.toggleOn .toggleDot {
+  background: var(--color-primary);
+}
+
+.tip {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.sendButton {
+  /* 推到最右：左边是知识库开关（+ 生成中的提示），两者不要挤在一起 */
+  margin-left: auto;
+  padding: var(--space-2) var(--space-5);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.sendButton:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.sendButton:disabled {
+  background: var(--color-border-strong);
+  color: var(--color-surface);
+}
+
+.stopButton {
+  margin-left: auto;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.stopButton:hover {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-text-inverse);
+}
+
+/* 上传结果的一行说明（202 口径：只说"收下了 + 后台索引中"） */
+.attachNotice {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  word-break: break-word;
+}
+
+/* 失败变体（R126 终评 F5②）：只覆盖颜色，布局沿用 .attachNotice ——
+   与 MessageList 的 copiedTip/copiedTipError 同一配对形状，红色走既有 token */
+.attachNoticeError {
+  color: var(--color-danger);
+}

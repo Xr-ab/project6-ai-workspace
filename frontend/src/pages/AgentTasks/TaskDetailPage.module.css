@@ -1,0 +1,25 @@
+/* 任务详情页：与 AgentTasksPage.module.css 同风格（同一套灰阶 / 圆角 / 字号）。
+   类名与 TaskDetailPage.tsx 一一对应，删任何一条都会静默无样式。 */
+.page { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.header { display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid #edeff3; padding-bottom: 12px; }
+.title { font-size: 20px; font-weight: 600; }
+.headRow { display: flex; align-items: center; gap: 10px; }
+.metaText { font-size: 13px; color: #6b7280; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; font-size: 13px; }
+.stats div { display: flex; flex-direction: column; gap: 2px; }
+.stats dt { color: #6b7280; font-size: 12px; }
+.stats dd { margin: 0; font-weight: 500; }
+.actions { display: flex; align-items: center; gap: 12px; }
+.errorCard { border: 1px solid #f3c9c9; background: #fdf2f2; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.errorText { color: #a52323; font-size: 13px; }
+.link { color: #1a56b0; font-size: 13px; }
+.linkButton { border: 1px solid #d8dbe2; background: #fff; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.hint { color: #6b7280; font-size: 13px; }
+.approvals { border: 1px solid #ffe6bf; background: #fffaf0; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.sectionTitle { font-size: 14px; font-weight: 600; }
+.approvalRow { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+/* `.report` 一条已撤（R56 收口）：报告区改由 components/ReportView 自带 CSS Module。
+   留着它会指到一个不存在的类名（页面里已无 styles.report 的消费点）。 */
+.compose { border: 1px solid #e3e5ea; border-radius: 10px; padding: 12px; background: #fff; display: flex; flex-direction: column; gap: 10px; }
+.textarea { width: 100%; border: 1px solid #d8dbe2; border-radius: 8px; padding: 10px; font: inherit; resize: vertical; }
+.primaryButton { border: none; background: #1a56b0; color: #fff; border-radius: 8px; padding: 8px 16px; cursor: pointer; align-self: flex-start; }
