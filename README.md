@@ -67,11 +67,11 @@ npm run dev                                           # 前端 5173
 | 验收/演示一次性项目（`docker/acceptance.env`） | **5543** | **5637** | **`127.0.0.1:8110`** | **8081** |
 | 集成测试一次性项目（`p6test`） | **5433** | **6380** | — | — |
 
-出处：`docker/acceptance.env:18-21`（四个端口键）、`docs/02` §10.2、`docker/run_integration_local.sh` 的 `PROJECT=p6test` 与端口段。mcp 那两枚刻意带 `127.0.0.1:` 前缀——`/mcp` 无鉴权，裸发布等于把跨组织库存读口对局域网打开（理由见 `docs/02` §10.2 那条 bullet）。
+出处：`docker/acceptance.env:18-21`（四个端口键）、`docker/run_integration_local.sh` 的 `PROJECT=p6test` 与端口段。mcp 那两枚刻意带 `127.0.0.1:` 前缀——`/mcp` 无鉴权，裸发布等于把跨组织库存读口对局域网打开。
 
 ## ⚠️ 双形态互斥
 
-容器 worker 起来时**别再**在本机 `python -m app.workers`：两个进程连同一个 Redis 队列会抢消费，任务归因就说不清了。原文纪律在 `docker-compose.yml:169-170`，成文版在 `docs/02` §10.4。
+容器 worker 起来时**别再**在本机 `python -m app.workers`：两个进程连同一个 Redis 队列会抢消费，任务归因就说不清了（原文纪律在 `docker-compose.yml:169-170`）。
 
 ## 测试（两条命令 + 本批现值）
 
@@ -90,9 +90,7 @@ cd project6-ai-workspace && bash docker/run_integration_local.sh
 - 密钥门禁：`backend/.venv/Scripts/python.exe backend/scripts/secret_scan.py` → **`SCANNED 285 READ 285 SKIPPED 0 HITS 0`**（`_p11c_t9_gates/secret-scan.txt`）。**为什么是 285 不是起文档那次的 283**：扫描面就是 `git ls-files` 的清单（`backend/scripts/secret_scan.py:136`），未跟踪的文件在门外面；本批新入库的 `README.md` 与 `DELIVERY.md` 各贡献 1，所以顺序是**先 `git add` 再扫**，否则新文档根本没被扫过。
 - 前端：`cd frontend && npm test -- --run` → `Test Files 2 passed (2)` / **`Tests 21 passed (21)`**；`npm run build` → `✓ built in 1.69s`（复跑 1.55s），TS strict 零错误
 
-> **2026-10-03 修复波 + Phase 9b 现值**（**只更离线与前端的数**）：离线 **`227 passed, 47 deselected, 1 warning`**（185 +16 +26）、前端 **`Tests 37 passed（3 files）`**（21 +16）+ `npm run build` 与 `npx tsc --noEmit` 均零错误；密钥门禁 **`SCANNED 302 READ 302 SKIPPED 0 HITS 0`**（对着已提交的面重扫）。**三层那 `232` 未重测**（本机 Docker 未起、5432/6379 无监听，`db`/`redis` 那 47 条本轮跑不到）⇒ 不改它的数、也不假勾。**已入库两笔**：`ec9e1cf`（`?limit=-1` 500 改判 422 + R56 报告呈现区 + 文档漂移对账）、`07db367`（Phase 9b Reports 三件套）。新增针：`test_report_render_contract.py`、`test_list_pagination_bounds.py`、`test_report_layer.py`、`taskReport.test.ts`。读数原文、红-绿证与**迁移的离线 SQL 验证**见 `backend/scratch/_p6debts/verification-20261003.md`。
-
-**禁沿用 11b 的 `119` / `166`**——那是当时的读数，现值在上面四行。要引现值就引 `docs/09` §14「自动化测试通过」下面那条 **11c 现值行**（185 / 232 / 21 / config-q / `SCANNED 285`，带归因）；`docs/02` §11 整节是 11b 收官时的形状，那一节开头的「门数现值注」就是提醒别从那儿抄数。
+> **2026-10-03 修复波 + Phase 9b 现值**（**只更离线与前端的数**）：离线 **`227 passed, 47 deselected, 1 warning`**（185 +16 +26）、前端 **`Tests 37 passed（3 files）`**（21 +16）+ `npm run build` 与 `npx tsc --noEmit` 均零错误；密钥门禁 **`SCANNED 302 READ 302 SKIPPED 0 HITS 0`**（对着已提交的面重扫）。**三层那 `232` 未重测**（本机 Docker 未起、5432/6379 无监听，`db`/`redis` 那 47 条本轮跑不到）⇒ 不改它的数、也不假勾。**已入库两笔**：`ec9e1cf`（`?limit=-1` 500 改判 422 + R56 报告呈现区 + 文档漂移对账）、`07db367`（Phase 9b Reports 三件套）。新增针：`test_report_render_contract.py`、`test_list_pagination_bounds.py`、`test_report_layer.py`、`taskReport.test.ts`。（详细验证记录为内部资料，不随库发布。）
 
 ## 密钥纪律
 
