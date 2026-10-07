@@ -3,7 +3,7 @@
 一句话：上传企业文档、问它话、让它替你把活干完的 AI 工作空间。
 后端 FastAPI + SQLAlchemy 2（async / asyncpg）+ LangGraph，前端 Vite + React + TypeScript（strict），依赖 PostgreSQL + pgvector、Redis、arq worker，另有一个 MCP 外部数据服务。全栈一条 compose 起得来。
 
-## 能力清单（每条给出处，出处都是本仓已有文档）
+## 能力清单
 
 | 能力 | 一句话 | 出处 |
 |---|---|---|
@@ -94,38 +94,9 @@ cd project6-ai-workspace && bash docker/run_integration_local.sh
 
 **禁沿用 11b 的 `119` / `166`**——那是当时的读数，现值在上面四行。要引现值就引 `docs/09` §14「自动化测试通过」下面那条 **11c 现值行**（185 / 232 / 21 / config-q / `SCANNED 285`，带归因）；`docs/02` §11 整节是 11b 收官时的形状，那一节开头的「门数现值注」就是提醒别从那儿抄数。
 
-## 三条 Demo（各一句话，逐步手册在 `docs/13`）
-
-- **Demo 1 Chat + RAG**：刚上传的那份文档进知识库，问答的引用就来自它（`docs/13` §3「Demo 1」小节）。
-- **Demo 2 Multi-Agent**：一次任务在 `/agents/<task_id>` 的 Trace 树上看得见谁调了模型（`docs/13` §3「Demo 2」小节）。
-- **Demo 3 Workflow**：真的停在 `waiting_approval`，批准才继续跑到交付（`docs/13` §3「Demo 3」小节）。
-
-三条都**本批真跑过**，都走同一条带守卫的一次性栈命令（`--out` 换个目录就是独立生命周期）：
-
-```bash
-cd project6-ai-workspace
-bash docker/run_on_demo_stack.sh --out backend/scratch/_p11c_t7_demo1_retry2 --rl 200 -- \
-  backend/.venv/Scripts/python.exe backend/demo/demo1_chat_rag.py
-```
-
-钱门（按 Trace 数模型节点、硬停 40）与各自读数在 `docs/13` §4；压测读数在 `docs/12`。
-
 ## 密钥纪律
 
 - `backend/.env` 只在本地、**永不入库**（`.gitignore` 已挡，`secret_scan.py` 再盯一遍形状）。
 - `.env.example` 是模板：加新键先加模板，别把真值抄进去。
 - compose 里 `environment:` 的优先级**高于** `env_file:`——列一个空值就等于把真值顶成空（原文在 `docker-compose.yml:103-105`）。
 - 验收/演示项目用 `docker/acceptance.env`（只有端口、卷名、容器名，无密钥）；一次性口令只在脚本进程环境里，命令行只出现变量名。
-
-## 已知限制（六条摘要，展开见 `DELIVERY.md`）
-
-1. ~~9b Reports 未落地~~ **已落地（Phase 9b，2026-10-03）**——`/reports` 从占位页升成真页（列表 + 详情，侧栏八项全是真页）；报告同时成了独立资源：`reports` 表 + 三条 API + 终态落库时投影写入。**当时记的缺口已全部销账（2026-10-03 补记）**：迁移 `a7c41f0b9de2` 已在真 Postgres 上跑穿（`backend/scratch/_p9b_realdb/README.md` 八项库目录 + 行为级证据，`282 passed / rc=0`；跟踪层 `docker/run_integration_local.sh -v` 空卷 **285 passed**）；三条 UI 留白（时间范围过滤 / 引用来源折叠区 / 分页直达首页末页）同批收口。**仍没证的**：`report_service` / `report_repo` 的真库读写（应用层针目前是离线的）。展开见 `DELIVERY.md` 已知不足 1。
-2. CI runner 那份绿灯未取证（推上去的 workflow 没有本地可读的运行日志）——**2026-10-03 裁定不再追**：私有库对匿名 API 与未登录浏览器都是 404，剩下的路径全要人工登录。所以本仓对外只说"CI 定义存在 + 本地三 job 等价命令跑过"，**不说"CI 已过"**；残留风险是依赖未钉版（`==` 0 次 / `>=` 30 次），详见 `docs/09` F 表 #26。
-3. SSE 面与 `/{id}` 详情面未压测（本批压的是 GET 列表/统计面 + 202 提交面）。
-4. 单进程 + 适配池 15 连接是吞吐天花板（`docs/12` §3 的 c32→c64 形状）。
-5. 限流的 ip 腿可被 XFF 伪造，只作粗粒度兜底（`app/core/rate_limit.py:116-120` 原文承认）。
-6. 聊天面 RAG 的跨语言 / 低重叠问句仍可能检索空手（固定单阈值 0.45 + 全文腿不切中文），空手时模型偶会编出 `[1]` 标记而引用区为空——**doc_summary 单文档总结已豁免该阈值**（2026-10-03），聊天侧维持原 gate（答不上可以不给引用），展开见 `DELIVERY.md` 已知不足 9。
-
-## 文档索引
-
-`docs/01-prd` … `docs/13-demo-scripts`（`12` = 压测读数，`13` = Demo 演练手册）+ `docs/superpowers/`（每段的 spec 与 plan，按日期命名）+ 本文件 + `DELIVERY.md`（面试口径的交付说明）。
