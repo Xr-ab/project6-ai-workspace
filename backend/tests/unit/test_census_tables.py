@@ -12,11 +12,11 @@ def test_build_dsn_keeps_credentials_and_swaps_db_and_port():
     from scripts.census_tables import build_dsn
 
     dsn = build_dsn(
-        "postgresql+asyncpg://app:app_dev_pwd@localhost:5432/ai_workspace",
+        "postgresql+asyncpg://app:test_pw_placeholder@localhost:5432/ai_workspace",
         "enterprise_data",
         port=5543,
     )
-    assert dsn == "postgresql://app:app_dev_pwd@localhost:5543/enterprise_data"
+    assert dsn == "postgresql://app:test_pw_placeholder@localhost:5543/enterprise_data"
 
 
 def test_build_dsn_rejects_dsn_without_scheme_or_host():
@@ -30,7 +30,7 @@ def test_dsn_host_port_roundtrips_demo_stack_port():
     from scripts.census_tables import build_dsn, dsn_host_port
 
     dsn = build_dsn(
-        "postgresql+asyncpg://app:app_dev_pwd@localhost:5432/ai_workspace",
+        "postgresql+asyncpg://app:test_pw_placeholder@localhost:5432/ai_workspace",
         "ai_workspace",
         port=5543,
     )
@@ -51,7 +51,7 @@ def test_build_dsn_requires_port_when_host_is_given():
 
     with pytest.raises(ValueError):
         build_dsn(
-            "postgresql+asyncpg://app:app_dev_pwd@localhost:5432/ai_workspace",
+            "postgresql+asyncpg://app:test_pw_placeholder@localhost:5432/ai_workspace",
             "ai_workspace",
             host="localhost",
         )
