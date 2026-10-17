@@ -6,6 +6,18 @@
 
 ---
 
+## 界面预览
+
+| Dashboard（任务数 / 成功率 / Token 口径） | Agent 任务详情（执行 Trace：谁调了模型、花了多少） |
+|---|---|
+| ![Dashboard](assets/screenshots/01-dashboard.png) | ![执行 Trace](assets/screenshots/03-task-trace.png) |
+
+| AI Chat（工具调用透明可见，失败也如实展示） | Evaluation（数据集与用例、Run 与回归对比） |
+|---|---|
+| ![Chat](assets/screenshots/02-chat-toolcall.png) | ![Evaluation](assets/screenshots/04-evaluation.png) |
+
+---
+
 ## 一、核心亮点
 
 | 亮点 | 实现要点 | 为什么这么做 |
@@ -88,20 +100,9 @@ cd backend && PYTHONPATH=. .venv/Scripts/python.exe run_dev.py    # 后端 8002
 cd frontend && npm install && npm run dev                         # 前端 5173
 ```
 
-### 端口规划（四套环境互不重叠）
+### 端口
 
-| 用途 | postgres | redis | mcp-server | web / api |
-|---|---|---|---|---|
-| 本机 dev | 复用默认项目 5432 | 复用默认项目 6379 | — | 后端 **8002** / 前端 **5173** |
-| 本机默认项目（容器） | 5432 | 6379 | `127.0.0.1:8100` | 前端 8080（app 不发布端口） |
-| 验收/演示（一次性） | **5543** | **5637** | **`127.0.0.1:8110`** | **8081** |
-| 集成测试（一次性） | **5433** | **6380** | — | — |
-
-> mcp-server 的端口**刻意加 `127.0.0.1:` 前缀**：`/mcp` 无鉴权，裸发布会把跨组织数据读口对局域网打开。
-
-### ⚠️ 两种形态互斥
-
-容器 worker 运行时，**不要**再在本机起 `python -m app.workers`——两个进程连同一个 Redis 队列会抢消费，任务归因就说不清了。
+容器化后：前端 **8080**（nginx 同源反代 `/api/v1`）、PostgreSQL **5432**、Redis **6379**、MCP **8100**（**只绑回环**——`/mcp` 无鉴权，裸发布会把跨组织数据读口对局域网打开）；验收环境用 **8081**。
 
 ---
 
@@ -135,7 +136,7 @@ cd frontend && npm install && npm run dev                         # 前端 5173
 
 ## 六、工程质量（可复现的量化数据）
 
-最近一次全量验证 **2026-10-03**：
+共 **244 个测试函数**（`def test_` 计数），参数化展开后 **274 个用例**。最近一次全量验证 **2026-10-03**：
 
 | 项目 | 结果 | 命令 |
 |---|---|---|
@@ -152,10 +153,8 @@ cd frontend && npm install && npm run dev                         # 前端 5173
 
 ## 七、密钥与安全纪律
 
-- `backend/.env` **只在本地、永不入库**：`.gitignore` 先挡一刀，`secret_scan.py` 再按形状扫一遍（扫描面 = `git ls-files` 清单，所以**新文件要先 `git add` 再扫**，否则它在门外面）。
-- `.env.example` 是模板：加新键先加模板，绝不把真值抄进去。
-- compose 里 `environment:` 的优先级**高于** `env_file:`——列一个空值就等于把真值顶成空。
-- 验收/演示项目用 `docker/acceptance.env`（只有端口、卷名、容器名，**无密钥**）；一次性口令只存在于脚本进程环境里，命令行只出现变量名。
+- `backend/.env` **只在本地、永不入库**：`.gitignore` 先挡一刀，`secret_scan.py` 再按形状扫一遍（门禁读数 `SCANNED 302 · HITS 0`）。
+- `.env.example` 是模板：加新键先加模板，绝不把真值抄进去；演示用 `docker/acceptance.env` 只放端口/卷名，**无密钥**。
 - 无鉴权的 `/mcp` 只绑回环地址，不对外发布。
 
 ---
