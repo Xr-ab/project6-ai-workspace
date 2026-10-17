@@ -73,8 +73,6 @@ export default function Sidebar() {
           ),
         )}
       </nav>
-
-      <div className={styles.footer}>Phase 9a · 工作台（报告页 9b）</div>
     </aside>
   );
 }
