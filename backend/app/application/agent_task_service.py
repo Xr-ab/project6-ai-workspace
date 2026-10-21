@@ -21,10 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.graph import checkpointer
 from app.ai.graph.memory import (
     MEMORY_CONCLUSION_CHARS,
-    MEMORY_ROUNDS_MAX,
+    MEMORY_RECALL_ROUNDS,
+    archived_rounds,
     build_memory,
     clip_text,
 )
+from app.ai.graph.memory_summary import summarize_archived
 from app.ai.graph.workflow import build_task_graph
 from app.application import task_runner
 from app.core.exceptions import TaskNotFoundError, TaskRunConflictError
@@ -255,24 +257,52 @@ async def _build_memory_for(
     task_id,
     organization_id: uuid.UUID,
     user_id: uuid.UUID,
+    with_model_summary: bool = True,
 ) -> tuple[dict, int]:
     """按 §6 的口径装配"本轮记忆"：取最近 N 条 completed run 的快照 → build_memory。
 
     返回 (memory, round_no)。round_no 就是本轮 run 的序号 —— 用它而不是 retry_count
     是硬要求（§4.1：retry_count 归本轮白板，混进记忆就是"上一轮审了几次"）。
 
+    取几条由 `MEMORY_RECALL_ROUNDS` 决定，**不是** `MEMORY_ROUNDS_MAX`（§4.5）：
+    窗口（4）之外的轮次要压成摘要，原料就得比窗口多取一些；两个常量混用会让
+    摘要永远为空 —— 而且只在跑到第 5 轮以后才显形。
+    代价是单次查询多读几行 JSONB 快照（实测单行 4~14KB，12 行约 100KB），
+    走的是 `(task_id, run_no)` 唯一约束自带的索引，可接受；真成瓶颈再改成
+    投影查询（只取 state->>'question'/'analysis'），现在不做没有量过的优化。
+
     身份照旧往下传：task_id 是外部入参，读快照这条链上多一道 org+user JOIN 过滤不要钱，
     而漏一次校验的代价是§7点名最重的「跨组织读别人业务数字」，不赌调用方永远记得查。
+
+    摘要两档（§4.5）：窗口外有轮次就先交给 `summarize_archived` 写一句人话（8 秒超时，
+    失败/空文本回退规则摘要 `digest_rounds`，降级原因进 `stats.summary_error`）；
+    没有轮次则整段跳过。`with_model_summary=False` 给**只读的**记忆视图端点用：
+    看记忆不该花 token、不该多等一次模型调用，那里只回答"下一轮会继承什么"。
     """
     run_no = await task_repo.next_run_no(session, task_id=task_id)
     prev = await task_repo.list_recent_runs(
-        session, task_id=task_id, status="completed", limit=MEMORY_ROUNDS_MAX,
+        session, task_id=task_id, status="completed", limit=MEMORY_RECALL_ROUNDS,
         organization_id=organization_id, user_id=user_id,
     )
-    memory = build_memory(
-        [{"run_no": r.run_no, "status": r.status, "state": r.state} for r in prev],
-        round_no=run_no,
+    snapshots = [{"run_no": r.run_no, "status": r.status, "state": r.state} for r in prev]
+    archived_summary, summary_trace = None, None
+    if with_model_summary:
+        archived = archived_rounds(snapshots)
+        if archived:
+            result = await summarize_archived(archived)
+            archived_summary = result.text
+            # 连同 token 与耗时一起交给执行层：run 之外的模型调用也要落进 agent_runs
+            # （成本面板统计的是那张表，见 memory_summary 模块头）。只挂 attempted 的
+            # 结果：原料不足两道门是合法跳过（没花 token），记一行 tokens=0 的 error
+            # span 等于在成本面板上伪造一次失败调用。
+            summary_trace = result if result.attempted else None
+            if result.error:
+                logger.warning("任务 %s 的摘要压缩降级为规则摘要：%s", task_id, result.error)
+    memory = build_memory(snapshots, round_no=run_no, archived_summary=archived_summary)
+    memory["stats"]["summary_error"] = (
+        None if summary_trace is None or summary_trace.ok else summary_trace.error
     )
+    memory["summary_trace"] = summary_trace
     return memory, run_no
 
 
@@ -305,10 +335,15 @@ async def get_task_memory(
         organization_id=organization_id, user_id=user_id,
     )
     memory, _round_no = await _build_memory_for(
-        session, task_id=task.id, organization_id=organization_id, user_id=user_id
+        session, task_id=task.id, organization_id=organization_id, user_id=user_id,
+        with_model_summary=False,   # 只读视图：不花 token、不多等一次模型（§4.5）
     )
     mc = memory["context"]
+    # reused_by_next 不是「在 history 里」而是「被下一轮继承了」：§4.5 的摘要压缩
+    # 让滚出窗口的轮次也进入了记忆（只是被压成一行），漏算 summary_rounds 会让
+    # 视图把"第 1 轮的问题其实还在摘要里"标成未被复用，页面直接说谎。
     window = {h["round"] for h in (mc or {}).get("history", [])}
+    window |= set((mc or {}).get("summary_rounds") or [])
     rounds = []
     for r in runs:
         # 快照是 JSONB，形状由模型/工具产出，历史轮可能是 None、也可能是当年写坏的半截结构。

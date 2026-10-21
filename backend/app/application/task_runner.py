@@ -127,6 +127,28 @@ async def run_task(
         tool_call_sink=[],  # 节点往里塞 ToolCallRecord，末尾由 _persist_tool_calls 落库
     )
     spans: list[dict] = []
+    # 摘要压缩（docs/11 §4.5）：它在图启动之前就调用了模型，没有节点可以挂 span，
+    # 但记账不能因此丢失 —— agent_runs 是成本面板的统计源，run 之外的调用也必须
+    # 有自己的行。node 名带 "memory_" 前缀，与业务节点区分：它不是图里的一站，
+    # progress 分母仍按 graph.nodes 数（下面那行），所以它不影响进度百分比。
+    summary_trace = (memory or {}).get("summary_trace")
+    if summary_trace is not None:
+        spans.append({
+            "span_id": uuid.uuid4(),
+            "node": "memory_summary",
+            # ok 表示"这轮摘要由模型写"；error 表示"尝试过但降级"，两种情况调用都真的
+            # 发生了（token 花了），所以要按事实记，不能因为降级就不记这一笔。
+            "status": "ok" if summary_trace.ok else "error",
+            "started_at": summary_trace.started_at,
+            "finished_at": summary_trace.finished_at,
+            "duration_ms": summary_trace.duration_ms,
+            "error_message": summary_trace.error,
+            "prompt_tokens": summary_trace.prompt_tokens,
+            "completion_tokens": summary_trace.completion_tokens,
+            # 摘要正文也挂上：Trace 页只从 partials 取节点输出，而 memory_summary 不是
+            # 图节点、partials 里没有它，不另给一个出口这一行在页面上就是"空白执行"。
+            "output": {"content": summary_trace.text or ""},
+        })
     # 本轮的记账：问题原文（tasks.question 保持首轮不动，§6）+ 记忆继承明细
     meta_ctx: dict = {"question": question, "memory": (memory or {}).get("stats") or memory_mod.empty_stats()}
     config: RunnableConfig = {
@@ -295,7 +317,7 @@ async def _persist_agent_runs(
                 task_run_id=task_run.id,
                 agent_name=span["node"],
                 status=span["status"],
-                output_summary=_summary(partials.get(span["node"])),
+                output_summary=_summary(span.get("output") or partials.get(span["node"])),
                 duration_ms=span["duration_ms"],
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,

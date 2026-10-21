@@ -10,15 +10,20 @@ from app.ai.graph.memory import (
     MEMORY_CHARS_MAX,
     MEMORY_CONCLUSION_CHARS,
     MEMORY_FACTS_MAX,
+    MEMORY_RECALL_ROUNDS,
     MEMORY_RESEARCH_MAX,
     MEMORY_ROUNDS_MAX,
+    MEMORY_SUMMARY_CHARS,
     REPORT_INCLUDE,
     SUPERVISOR_INCLUDE,
     _MEMORY_ARGS_CHARS,
     _MEMORY_FIELD_CHARS,
+    _MEMORY_SUMMARY_Q_CHARS,
     _size,
+    archived_rounds,
     build_memory,
     clip_text,
+    digest_rounds,
     render_block,
 )
 
@@ -151,13 +156,15 @@ def test_nothing_usable_yields_no_context_and_honest_stats():
     out = build_memory([], round_no=1)
     assert out["context"] is None
     assert out["stats"] == {"injected": False, "history_rounds": 0, "facts": 0,
-                            "research": 0, "truncated": False, "degraded_rounds": []}
+                            "research": 0, "archived_rounds": 0, "summary_chars": 0,
+                            "summary_source": None,
+                            "truncated": False, "degraded_rounds": []}
 
 
 def test_include_tuples_are_the_node_wiring_contract():
-    assert SUPERVISOR_INCLUDE == ("history", "facts")
-    assert BUSINESS_ANALYST_INCLUDE == ("history", "facts", "research_briefs")
-    assert REPORT_INCLUDE == ("report_brief", "history")
+    assert SUPERVISOR_INCLUDE == ("summary", "history", "facts")
+    assert BUSINESS_ANALYST_INCLUDE == ("summary", "history", "facts", "research_briefs")
+    assert REPORT_INCLUDE == ("summary", "report_brief", "history")
     assert "report_brief" not in SUPERVISOR_INCLUDE       # 拆任务用不上报告
     assert "facts" not in REPORT_INCLUDE                  # 报告不判断查没查过
 
@@ -170,7 +177,9 @@ def test_render_block_returns_empty_string_without_memory():
 
 
 def test_render_block_only_emits_the_included_lines():
-    mc = {"round": 2, "history": [{"round": 1, "question": "问", "conclusion": "答"}],
+    mc = {"round": 2, "summary": "第 1 轮主线：旧问题",
+          "summary_rounds": [1],
+          "history": [{"round": 2, "question": "问", "conclusion": "答"}],
           "facts": ["query_sales({}) → 4 行"],
           "research_briefs": ["调研结论：外部背景"],
           "report_brief": {"executive_summary": "摘要", "key_findings": ["发现"],
@@ -183,3 +192,127 @@ def test_render_block_only_emits_the_included_lines():
     rep = render_block(mc, include=REPORT_INCLUDE)
     assert "【上一轮报告摘要】" in rep and "摘要" in rep
     assert "【上一轮已查过的数据】" not in rep
+    # 摘要块三个节点都给（§4.5），且必须排在历轮结论**之前**：它是更早的轮次，
+    # 顺序反过来模型会把摘要当成最新进展。
+    for block in (sup, rep):
+        assert "【更早轮次摘要】" in block
+        assert block.index("【更早轮次摘要】") < block.index("【历轮结论】")
+    # 不在 include 里就不该出现（render_block 只负责怎么说，不负责该给谁）
+    assert "【更早轮次摘要】" not in render_block(mc, include=("history",))
+
+
+# ---- 摘要压缩（docs/11 §4.5）----
+
+def test_no_summary_within_the_window():
+    """窗口内（≤ MEMORY_ROUNDS_MAX 轮）不该有摘要：没东西可压，凭空多一段是污染。"""
+    out = build_memory([_run(i) for i in range(1, MEMORY_ROUNDS_MAX + 1)], round_no=5)
+    mc = out["context"]
+    assert mc["summary"] is None and mc["summary_rounds"] == []
+    assert out["stats"]["archived_rounds"] == 0 and out["stats"]["summary_chars"] == 0
+    assert out["stats"]["summary_source"] is None
+
+
+def test_rounds_pushed_out_of_window_become_one_summary_line():
+    """第 6 轮：1、2 轮滚出窗口 → 压成一行；history 仍是最近 4 轮的完整叙事。"""
+    out = build_memory([_run(i) for i in range(1, 7)], round_no=7)
+    mc = out["context"]
+    assert [h["round"] for h in mc["history"]] == [3, 4, 5, 6]
+    assert mc["summary_rounds"] == [1, 2]
+    assert mc["summary"] == "第 1-2 轮主线：第1轮问 → 第2轮问"
+    assert out["stats"]["archived_rounds"] == 2
+    assert out["stats"]["summary_chars"] == len(mc["summary"])
+
+
+def test_summary_is_bounded_by_its_own_budget_and_drops_from_the_old_side():
+    """超 200 字时从**旧**的一端丢：离窗口最近的几轮先留住，并点明略过几轮。"""
+    runs = [_run(i, question=f"第{i}轮" + "问" * 40) for i in range(1, 13)]
+    mc = build_memory(runs, round_no=13)["context"]
+    assert len(mc["summary"]) <= MEMORY_SUMMARY_CHARS
+    assert mc["summary"].startswith("更早 ")
+    assert "轮略，" in mc["summary"]
+    # 最新那轮（第 8 轮）必须在，最旧那轮（第 1 轮）被略掉
+    assert f"第8轮{'问' * _MEMORY_SUMMARY_Q_CHARS}"[:12] in mc["summary"]
+    dropped = 8 - len(mc["summary_rounds"])
+    assert mc["summary"].startswith(f"更早 {dropped} 轮略，")
+    assert mc["summary_rounds"] == list(range(1 + dropped, 9))
+
+
+def test_summary_skips_rounds_without_a_question():
+    """没记问题的轮次与没结论的轮次同理（§7）：宁可少一条，不塞占位符。"""
+    archived = [
+        {"round": 1, "question": "", "conclusion": "有结论没记问题"},
+        {"round": 2, "question": "华南对比", "conclusion": "结论"},
+    ]
+    assert digest_rounds(archived) == "第 2 轮主线：华南对比"
+    assert digest_rounds([]) == ""
+
+
+def test_archived_rounds_is_the_shared_window_judgement():
+    """窗口判据只有一处：`archived_rounds` 与 `build_memory` 的 history 必须不重不漏。"""
+    runs = [_run(i) for i in range(1, 7)]
+    assert [r["round"] for r in archived_rounds(runs)] == [1, 2]
+    assert [h["round"] for h in build_memory(runs, round_no=7)["context"]["history"]] == [3, 4, 5, 6]
+    # 窗口内不调用它：摘要原料为空 → 调用方据此跳过模型调用（§4.5）
+    assert archived_rounds([_run(i) for i in range(1, 5)]) == []
+
+
+def test_model_summary_wins_over_digest_and_records_its_source():
+    """模型摘要优先于规则摘要；stats 要能看出"这轮摘要是谁写的"（§4.5 降级留痕）。"""
+    runs = [_run(i) for i in range(1, 7)]
+    mc = build_memory(runs, round_no=7, archived_summary="模型写的主线")["context"]
+    assert mc["summary"] == "模型写的主线"
+    assert "第1轮问" not in mc["summary"]          # 规则版没被混进来
+    # 模型只回文本不回轮号，所以按 archived 全量记：它讲的是"更早那几轮的主线"整体
+    assert mc["summary_rounds"] == [1, 2]
+    out = build_memory(runs, round_no=7, archived_summary="模型写的主线")
+    assert out["stats"]["summary_source"] == "model"
+    assert out["stats"]["summary_chars"] == len("模型写的主线")
+
+
+def test_model_summary_is_clipped_and_refused_without_raw_material():
+    """长度截断口径只有一份（memory 的 clip_text）；没有原料时模型文本整份作废。"""
+    runs = [_run(i) for i in range(1, 7)]
+    long_text = "摘" * (MEMORY_SUMMARY_CHARS + 50)
+    mc = build_memory(runs, round_no=7, archived_summary=long_text)["context"]
+    assert len(mc["summary"]) == MEMORY_SUMMARY_CHARS
+    # 窗口内没有 archived：传了摘要也该被忽略，否则摘要会声称覆盖不存在的轮次
+    inside = build_memory([_run(i) for i in range(1, 5)], round_no=5,
+                          archived_summary="无中生有的摘要")["context"]
+    assert inside["summary"] is None and inside["summary_rounds"] == []
+    # 空串 / None 与没传等价（规则兜底接手）
+    assert build_memory(runs, round_no=7, archived_summary="")["context"]["summary"] \
+        == build_memory(runs, round_no=7)["context"]["summary"]
+
+
+def test_recall_window_caps_how_far_back_the_summary_can_reach():
+    """回看窗口是硬的：第 20 轮时摘要最多覆盖到第 8 轮（12 条快照的头部），
+    第 1 轮彻底不留 —— 这是 MEMORY_RECALL_ROUNDS 的语义，不是 bug。"""
+    runs = [_run(i) for i in range(1, 21)]
+    mc = build_memory(runs[-MEMORY_RECALL_ROUNDS:], round_no=21)["context"]
+    assert [h["round"] for h in mc["history"]] == [17, 18, 19, 20]
+    assert mc["summary_rounds"] == list(range(9, 17))
+
+
+def test_budget_drops_summary_before_halving_the_latest_conclusion():
+    """预算不够时摘要比明细线先让位，但必须排在最末一条结论折半**之前**（§4.3）。"""
+    runs = [_run(i, question="问" * MEMORY_CONCLUSION_CHARS,
+                 analysis="长" * MEMORY_CONCLUSION_CHARS,
+                 data_results=[{"tool": f"t{k}", "ok": True, "rows": 1,
+                                "args": {"x": "字" * _MEMORY_ARGS_CHARS}}
+                               for k in range(MEMORY_FACTS_MAX)],
+                 research_results=[{"tool": f"r{k}", "ok": True, "rows": 1,
+                                    "args": {"y": "字" * _MEMORY_ARGS_CHARS}}
+                                   for k in range(3)] +
+                                  [{"tool": "conclusion", "text": "研" * _MEMORY_FIELD_CHARS}],
+                 report={"executive_summary": "摘" * _MEMORY_FIELD_CHARS,
+                         "key_findings": ["发" * MEMORY_CONCLUSION_CHARS] * 3,
+                         "recommendations": ["议" * MEMORY_CONCLUSION_CHARS] * 3},
+                 ) for i in range(1, 9)]
+    out = build_memory(runs, round_no=9)
+    mc = out["context"]
+    assert _size(mc) <= MEMORY_CHARS_MAX
+    assert mc["truncated"] is True
+    # 摘要与 summary_rounds 同生同死：文本没了，轮号也必须清空（否则视图说谎）
+    if mc["summary"] is None:
+        assert mc["summary_rounds"] == []
+        assert out["stats"]["summary_source"] is None   # 正文都没了，别说"摘要是模型写的"
